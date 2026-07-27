@@ -94,17 +94,21 @@ Worth doing if Track 1's step 7 fails, **or if you want background audio.**
 
 [Orion](https://orionbrowser.com/) is a free App Store browser and the only iOS browser that runs real Chrome and Firefox extensions. Two reasons it's compelling here:
 
-- You get **actual uBlock Origin and actual SponsorBlock**, not substitutes.
+- You get **real SponsorBlock**, not a userscript substitute.
 - It does **background audio and Picture-in-Picture for YouTube** — audio keeps playing when you lock the screen or switch apps. Safari won't do this. It's the biggest "feels like the real app" feature, and it's the thing YouTube normally charges Premium for.
 
-1. App Store → **Orion Browser by Kagi**. Free (Orion+ is optional and unnecessary here).
-2. Orion → Settings → **Extensions** → install from the curated gallery, or straight from addons.mozilla.org.
-3. Install **uBlock Origin** and **SponsorBlock**. Enable both for youtube.com.
-4. Enable background audio in Orion's settings.
-5. Load `m.youtube.com`, sign in, run the step 5 test above.
-6. Use Orion's **Add to Home Screen** for the launcher.
+> **Do not try to install uBlock Origin here.** Full uBO cannot run on iOS — Apple forces every browser onto WebKit, which only allows MV3-style Safari Web Extensions. Orion's **own built-in ad blocker** is on by default and does that job instead.
 
-One caveat, held loosely: Orion's iOS extension support is officially **preliminary**, and iOS forces every browser onto WebKit, so complex extensions can be partly degraded. Confirm each extension actually fires rather than trusting that it installed cleanly.
+1. App Store → **Orion Browser by Kagi**. Free (Orion+ is optional and unnecessary here).
+2. Extensions are **off by default and hidden**. Menu → **Settings** → **Advanced** → enable **Chrome and Firefox Extensions**.
+3. Menu → **Extensions** → **+** → **Install Chrome Extension** → search **SponsorBlock** → install.
+   - It must come from the **Chrome Web Store**. The Firefox add-on store version does not work on Orion.
+4. Leave Orion's built-in ad blocking enabled (Settings → ad and tracking blocking).
+5. Enable background audio in Orion's settings.
+6. Load `m.youtube.com`, sign in, run the step 5 test above.
+7. Use Orion's **Add to Home Screen** for the launcher.
+
+Two caveats worth taking seriously. Kagi describes iOS extension support as **preliminary**, so confirm SponsorBlock actually fires rather than trusting that it installed. And Orion's built-in blocker is not the same thing as uBlock Origin Lite — verify it stops YouTube's *in-stream video* ads, not just banners. If either check fails, go back to Track 1; that setup is the reliable one.
 
 ---
 
@@ -155,6 +159,6 @@ Expected ongoing maintenance: **none.** If the userscript ever breaks against a 
 
 **The install prompt never appears.** The URL has to end in `.user.js` and be the *raw* file — a normal GitHub file page won't trigger it. Fall back to the Save to Files route above.
 
-**Everything works in Safari but not from the home screen icon.** That's the step 7 case — extensions aren't reaching the standalone web app. Re-add the shortcut with "Open as Web App" off, or move to Track 2.
+**Everything works in Safari but not from the home screen icon.** That's the step 7 case — extensions aren't reaching the standalone web app. **Confirmed to happen in practice**, so expect it rather than hoping otherwise. Fix: delete the icon, re-add with **"Open as Web App" off**. You keep one-tap launch and full blocking; you just see the Safari address bar. Track 2 is the alternative if the fullscreen look matters more than certainty.
 
 **Audio stops when I lock the screen.** Expected in Safari. This is what Track 2 (Orion) solves.
