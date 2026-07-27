@@ -36,19 +36,23 @@ Settings → General → About. You need **iOS 18.6 or later**. On iOS 26 this w
 The official *SponsorBlock for Safari* app is $2.99. This is the free equivalent: run SponsorBlock's logic as a userscript.
 
 1. App Store → search **Userscripts** (open source, by quoid). Free.
-2. Open it. It will ask for a directory before it will run anything — tap through to Files → On My iPhone → create a folder called `Userscripts` → select it.
+2. Open it once and check the directory setting. Recent versions (v1.5.0+) configure a local default folder automatically; older ones will not run anything until you pick one. If prompted, go to Files → On My iPhone → create a folder called `Userscripts` → select it.
 3. Settings → Apps → Safari → Extensions → **Userscripts** → **On** → **Allow on All Websites** → **Allow**.
 
 ### 4. Add the SponsorBlock script
 
 The script is in this repo: [`userscripts/sponsorblock-mobile.user.js`](userscripts/sponsorblock-mobile.user.js).
 
+> The iOS Userscripts app has **no built-in editor** (unlike the Mac version), so there is nowhere to paste code. You install scripts by pointing Safari at a `.user.js` URL, or by dropping the file in its folder.
+
 On your phone:
 
-1. Open the **raw** file in Safari (on GitHub, tap the file → **Raw**).
-2. Tap and hold → **Select All** → **Copy**.
-3. Tap the extensions button (**ᴀA** or the puzzle icon) in Safari's address bar → **Userscripts** → **+** → **New Userscript**.
-4. Delete the placeholder, paste, **Save**.
+1. Open the **raw** file in Safari — on GitHub, tap the file → **Raw**. The URL must end in `.user.js`, which it does:
+   `raw.githubusercontent.com/bezanisniko-del/YouTube-Premium-/claude/youtube-mobile-adblock-0x2k73/userscripts/sponsorblock-mobile.user.js`
+2. Tap **ᴀA** in Safari's address bar → **Userscripts**.
+3. The popup detects the userscript and offers an **install prompt**. Tap it.
+
+**If no install prompt appears,** use the file route instead: **Share** → **Save to Files** → save into the `Userscripts` folder you chose during setup. Keep the `.user.js` ending — if iOS saves it as `.txt`, rename it in Files or the app will ignore it.
 
 It talks to the public SponsorBlock API — the same crowdsourced database the real extension uses. It only sends the first 4 characters of a hash of the video ID, so the server never learns which video you're watching.
 
@@ -147,7 +151,9 @@ Expected ongoing maintenance: **none.** If the userscript ever breaks against a 
 
 **Ads still playing.** uBlock Origin Lite is probably in Basic mode. Open the app and set `youtube.com` to Optimal or Complete. If they persist, add [`userscripts/youtube-ad-skip.user.js`](userscripts/youtube-ad-skip.user.js) as a second layer — it clicks "Skip Ad" and fast-forwards unskippable ads. It's a backstop, not the primary mechanism, so only add it if you need it.
 
-**Sponsors not skipping.** Check that Userscripts has a directory set — it silently does nothing without one. Then confirm the script's `@match` lines cover the domain you're actually on (`m.youtube.com` vs `www.youtube.com`); both are included by default. Also worth knowing: not every video has submitted segments. Test on a large channel where someone has certainly submitted them.
+**Sponsors not skipping.** First open the Userscripts popup on a YouTube page and confirm the script is actually listed and enabled — if the install prompt was dismissed, nothing was installed. Check that Userscripts has a directory set; it silently does nothing without one. Then confirm the script's `@match` lines cover the domain you're on (`m.youtube.com` vs `www.youtube.com`); both are included by default. Also worth knowing: not every video has submitted segments, so test on a large channel where someone has certainly submitted them.
+
+**The install prompt never appears.** The URL has to end in `.user.js` and be the *raw* file — a normal GitHub file page won't trigger it. Fall back to the Save to Files route above.
 
 **Everything works in Safari but not from the home screen icon.** That's the step 7 case — extensions aren't reaching the standalone web app. Re-add the shortcut with "Open as Web App" off, or move to Track 2.
 
