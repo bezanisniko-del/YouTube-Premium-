@@ -1,0 +1,14 @@
+# Real secrets. Only .env.example is committed.
+.env
+*.env
+!.env.example
+
+# Home Assistant secrets, if anyone ever drops a copy here while editing.
+secrets.yaml
+
+# Local backups of the add-on data volume.
+*.tar.gz
+
+# OS noise
+.DS_Store
+Thumbs.db

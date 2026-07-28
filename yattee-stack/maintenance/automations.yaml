@@ -1,0 +1,140 @@
+# Maintenance automations for the Yattee Server add-on.
+#
+# Paste into automations.yaml, or create them through the UI from this as a
+# reference. They depend on the entities defined in rest_sensors.yaml.
+#
+# Replace notify.mobile_app_iphone with your actual companion-app service —
+# Developer Tools -> Actions -> search "notify" to find its name.
+#
+# Why this and not cron: Home Assistant OS has no user cron, and an add-on is
+# not a place to schedule host jobs from. HA's own scheduler is the native
+# equivalent, and it can reach your phone, which cron cannot.
+
+# ---------------------------------------------------------------------------
+# 1. Nightly refresh — pulls the latest yt-dlp
+# ---------------------------------------------------------------------------
+# run.sh pip-installs yt-dlp on every start (ytdlp_version: latest), so a
+# restart IS the upgrade. 04:00 local, when nobody is watching.
+- id: yattee_server_nightly_refresh
+  alias: "Yattee Server: nightly refresh"
+  description: >-
+    Restarts the add-on so it picks up the current yt-dlp release, then checks
+    that extraction still works and reports if it does not.
+  mode: single
+  triggers:
+    - trigger: time
+      at: "04:00:00"
+  actions:
+    - action: hassio.addon_restart
+      data:
+        addon: local_yattee_server
+
+    # Give it time to install yt-dlp and bind the port. The pip install is the
+    # slow part on a Cortex-A55.
+    - delay:
+        minutes: 3
+
+    # Force a fresh reading rather than waiting for the next poll.
+    - action: homeassistant.update_entity
+      target:
+        entity_id:
+          - sensor.yattee_server_status
+          - sensor.yattee_server_extraction
+          - sensor.yattee_server_yt_dlp_version
+    - delay:
+        seconds: 90
+
+    - choose:
+        - conditions:
+            - condition: state
+              entity_id: sensor.yattee_server_extraction
+              state: "ok"
+          sequence:
+            # Success is silent. A nightly "everything is fine" push trains you
+            # to ignore the notification that actually matters.
+            - action: logbook.log
+              data:
+                name: Yattee Server
+                message: >-
+                  Nightly refresh ok — yt-dlp
+                  {{ states('sensor.yattee_server_yt_dlp_version') }}
+      default:
+        - action: persistent_notification.create
+          data:
+            notification_id: yattee_server_refresh_failed
+            title: "Yattee Server: refresh failed"
+            message: >-
+              {{ now().isoformat(timespec='seconds') }} — extraction is
+              '{{ states('sensor.yattee_server_extraction') }}' after the
+              nightly restart. yt-dlp is
+              {{ states('sensor.yattee_server_yt_dlp_version') }}.
+
+              This was NOT rolled back. If a new yt-dlp release is the cause,
+              set the add-on's ytdlp_version option to the last known good
+              release and restart. Then run verify.sh.
+        - action: notify.mobile_app_iphone
+          data:
+            title: "Yattee Server refresh failed"
+            message: >-
+              Extraction '{{ states('sensor.yattee_server_extraction') }}'
+              after nightly restart — YouTube playback is probably broken.
+
+# ---------------------------------------------------------------------------
+# 2. Extraction broke outside the nightly window
+# ---------------------------------------------------------------------------
+- id: yattee_server_unhealthy
+  alias: "Yattee Server: unhealthy"
+  description: >-
+    Fires when the server stops answering or extraction starts failing.
+    Sustained for 15 minutes so a restart or a transient YouTube blip does not
+    page you.
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.yattee_server_healthy
+      to: "on"
+      for:
+        minutes: 15
+  actions:
+    - action: persistent_notification.create
+      data:
+        notification_id: yattee_server_unhealthy
+        title: "Yattee Server unhealthy"
+        message: >-
+          {{ now().isoformat(timespec='seconds') }}
+          status={{ states('sensor.yattee_server_status') }}
+          extraction={{ states('sensor.yattee_server_extraction') }}
+          yt-dlp={{ states('sensor.yattee_server_yt_dlp_version') }}
+
+          Check order: verify.sh, then the yt-dlp version, then Tailscale.
+          See DECISIONS.md "Known failure modes".
+    - action: notify.mobile_app_iphone
+      data:
+        title: "Yattee Server unhealthy"
+        message: >-
+          status={{ states('sensor.yattee_server_status') }},
+          extraction={{ states('sensor.yattee_server_extraction') }}
+
+# ---------------------------------------------------------------------------
+# 3. Clear the notifications on recovery
+# ---------------------------------------------------------------------------
+- id: yattee_server_recovered
+  alias: "Yattee Server: recovered"
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.yattee_server_healthy
+      to: "off"
+      for:
+        minutes: 5
+  actions:
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: yattee_server_unhealthy
+    - action: persistent_notification.dismiss
+      data:
+        notification_id: yattee_server_refresh_failed
+    - action: logbook.log
+      data:
+        name: Yattee Server
+        message: "Recovered — extraction ok"

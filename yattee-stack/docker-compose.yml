@@ -1,0 +1,64 @@
+# Portable fallback for a real Linux Docker host.
+#
+# This is NOT the Home Assistant Green path — Home Assistant OS is not a
+# general-purpose Docker host, and running unmanaged containers alongside
+# Supervisor marks the system unsupported. On HA Green use
+# homeassistant-addon/ instead. See DECISIONS.md D2.
+#
+# Kept here so moving to a NAS or a mini-PC later is a copy, not a rewrite.
+
+services:
+  yattee-server:
+    # Pinned by digest: a tag can be repointed, a digest cannot.
+    # yattee/yattee-server:1.0.7, pushed 2026-07-06 (Docker Hub, checked 2026-07-28).
+    image: yattee/yattee-server:1.0.7@sha256:e1ccdfa00e460686fa08c66044f6cf5858299c6eb9bdfed749a91c5883853185
+    container_name: yattee-server
+
+    # Bind to the loopback or the tailnet interface only. Publishing 0.0.0.0
+    # would expose the server to the whole LAN, and to the internet the moment
+    # anything upstream forwards a port. See DECISIONS.md D5.
+    ports:
+      - "127.0.0.1:8085:8085"
+
+    volumes:
+      - data:/app/data
+      # Proxy downloads are throwaway. tmpfs keeps them off disk; drop this and
+      # use a named volume if RAM is tight on the host.
+      - type: tmpfs
+        target: /downloads
+        tmpfs:
+          size: 2g
+
+    env_file:
+      - .env
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8085/health', timeout=5).status==200 else 1)"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # The image ships yt-dlp frozen at its build date. Refresh on start, same
+    # rationale as the add-on (DECISIONS.md D3). Set YTDLP_VERSION in .env to
+    # an explicit release to pin, or comment this block out to disable.
+    # The image CMD hardcodes --port 8085 and ignores $PORT, so overriding the
+    # command means restating the uvicorn invocation.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ "${YTDLP_VERSION:-latest}" != "skip" ]; then
+          if [ "${YTDLP_VERSION:-latest}" = "latest" ]; then
+            pip install --no-cache-dir --upgrade yt-dlp || echo "WARNING: yt-dlp upgrade failed"
+          else
+            pip install --no-cache-dir "yt-dlp==${YTDLP_VERSION}" || echo "WARNING: yt-dlp pin failed"
+          fi
+        fi
+        echo "yt-dlp in use: $$(yt-dlp --version 2>/dev/null || echo unknown)"
+        exec uvicorn server:app --host 0.0.0.0 --port 8085 --log-level "${LOG_LEVEL:-info}"
+
+volumes:
+  data:
