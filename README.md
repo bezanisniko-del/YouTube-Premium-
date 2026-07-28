@@ -1,5 +1,32 @@
 # YouTube on iPhone — no ads, no sponsors, free, no weekly reinstall
 
+> ## ⚠️ Superseded — use [`yattee-stack/`](yattee-stack/) instead
+>
+> The browser-extension approach below does not work in the form it was written
+> for. Step 7 of Track 1 is the failure: **iOS does not run Safari Web
+> Extensions inside a standalone home-screen web app**, confirmed on-device. You
+> can have the fullscreen app feel *or* the blocking, not both. Track 2 (Orion)
+> trades uBlock Origin for Orion's own blocker and its extension support is
+> still preliminary.
+>
+> **[`yattee-stack/`](yattee-stack/) is the working setup.** It takes the
+> Track 3 idea — Yattee, a native App Store player with SponsorBlock built in —
+> and removes the reason Track 3 was only a backup: instead of depending on
+> flaky public Invidious instances, it runs a **self-hosted Yattee Server** on
+> the Home Assistant Green.
+>
+> Ads are not blocked; they are never fetched. `yt-dlp` pulls the video stream
+> directly, so YouTube's ad-injecting player never runs. Nothing to keep
+> updated, no filter lists to decay, plus background audio and PiP.
+>
+> Start at [`yattee-stack/README.md`](yattee-stack/README.md). The reasoning,
+> including why the App Store build of Yattee is the wrong client, is in
+> [`yattee-stack/DECISIONS.md`](yattee-stack/DECISIONS.md).
+>
+> Everything below is kept as a record of what was tried and why it was dropped.
+
+---
+
 A setup that gives you YouTube on an iPhone home screen, launching fullscreen like a real app, with **uBlock Origin killing the ads** and **SponsorBlock skipping the in-video sponsor reads** — the same experience you get on a desktop browser.
 
 Everything installs from the **App Store**, so it auto-updates and never expires. No sideloading, no certificates, no re-signing every 7 days, no money.
