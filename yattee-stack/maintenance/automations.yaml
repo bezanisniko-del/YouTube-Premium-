@@ -40,7 +40,7 @@
         entity_id:
           - sensor.yattee_server_status
           - sensor.yattee_server_extraction
-          - sensor.yattee_server_yt_dlp_version
+          - sensor.yattee_server_ytdlp_version
     - delay:
         seconds: 90
 
@@ -57,7 +57,7 @@
                 name: Yattee Server
                 message: >-
                   Nightly refresh ok — yt-dlp
-                  {{ states('sensor.yattee_server_yt_dlp_version') }}
+                  {{ states('sensor.yattee_server_ytdlp_version') }}
       default:
         - action: persistent_notification.create
           data:
@@ -67,7 +67,7 @@
               {{ now().isoformat(timespec='seconds') }} — extraction is
               '{{ states('sensor.yattee_server_extraction') }}' after the
               nightly restart. yt-dlp is
-              {{ states('sensor.yattee_server_yt_dlp_version') }}.
+              {{ states('sensor.yattee_server_ytdlp_version') }}.
 
               This was NOT rolled back. If a new yt-dlp release is the cause,
               set the add-on's ytdlp_version option to the last known good
@@ -104,7 +104,7 @@
           {{ now().isoformat(timespec='seconds') }}
           status={{ states('sensor.yattee_server_status') }}
           extraction={{ states('sensor.yattee_server_extraction') }}
-          yt-dlp={{ states('sensor.yattee_server_yt_dlp_version') }}
+          yt-dlp={{ states('sensor.yattee_server_ytdlp_version') }}
 
           Check order: verify.sh, then the yt-dlp version, then Tailscale.
           See DECISIONS.md "Known failure modes".

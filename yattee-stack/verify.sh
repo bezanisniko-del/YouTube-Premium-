@@ -202,7 +202,9 @@ else
     hdrs=$(curl -sS --max-time 45 -r 0-1048575 -o /dev/null \
                 -D - "$STREAM_URL" 2>/dev/null)
     scode=$(printf '%s' "$hdrs" | awk 'toupper($1) ~ /^HTTP/ {print $2}' | tail -1)
-    clen=$(printf '%s' "$hdrs" | awk 'BEGIN{IGNORECASE=1} /^content-length:/ {gsub(/\r/,""); print $2}' | tail -1)
+    # tolower() rather than IGNORECASE: the latter is a gawk extension and this
+    # may well run under busybox awk on the HA SSH add-on.
+    clen=$(printf '%s' "$hdrs" | awk 'tolower($1) == "content-length:" {gsub(/\r/,""); print $2}' | tail -1)
     clen=${clen:-0}
 
     if [ "$has_sig" -eq 0 ]; then

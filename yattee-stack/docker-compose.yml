@@ -40,7 +40,9 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      # Generous: first boot runs a pip install of yt-dlp before uvicorn binds,
+      # and on a slow link that is well over 30s.
+      start_period: 180s
 
     # The image ships yt-dlp frozen at its build date. Refresh on start, same
     # rationale as the add-on (DECISIONS.md D3). Set YTDLP_VERSION in .env to

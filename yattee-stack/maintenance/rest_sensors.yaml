@@ -34,7 +34,11 @@ rest:
     password: !secret yattee_server_pass
     authentication: basic
     sensor:
-      - name: Yattee Server yt-dlp version
+      # Named without the hyphen on purpose: Home Assistant derives the
+      # entity_id by slugifying the name, and "yt-dlp" would become
+      # sensor.yattee_server_yt_dlp_version — easy to mistype against the
+      # unique_id. This way both read yattee_server_ytdlp_version.
+      - name: Yattee Server ytdlp version
         unique_id: yattee_server_ytdlp_version
         value_template: >-
           {{ value_json.dependencies['yt-dlp'] | default('unauthenticated') }}
