@@ -7,8 +7,14 @@ the automation that catches it before you do.
 
 | File | What it gives you |
 |---|---|
+| **`yattee_server_package.yaml`** | **Start here.** Everything below in one drop-in package file — one file to add, one line in `configuration.yaml`. |
 | `rest_sensors.yaml` | Three REST sensors plus a `problem` binary sensor. The one that matters is `sensor.yattee_server_extraction`, which does a real extraction every 30 minutes — `/health` stays green when yt-dlp breaks, so liveness alone would tell you nothing. |
 | `automations.yaml` | Nightly add-on restart at 04:00 (which is how the yt-dlp upgrade happens — see `DECISIONS.md` D3), a 15-minute-sustained unhealthy alert, and a recovery dismissal. |
+
+Use **either** the package file **or** the two separate files — not both, or you
+get duplicate entities. The package is the same content and less to get wrong;
+the split files exist if you already keep `rest:` and `automation:` organised
+your own way.
 
 Failures raise a persistent notification **and** a companion-app push. Success
 is silent on purpose: a nightly "all good" push is a nightly push you learn to
@@ -17,7 +23,19 @@ swipe away.
 Nothing auto-rolls-back. A bad yt-dlp release is surfaced with the version
 number and the instruction to pin, never quietly reverted.
 
-## Install
+## Install — package file (recommended)
+
+1. Copy `yattee_server_package.yaml` to `/config/packages/yattee_server.yaml`.
+2. Add to `configuration.yaml`, if you do not already have a `packages:` line:
+
+   ```yaml
+   homeassistant:
+     packages: !include_dir_named packages
+   ```
+
+3. Then steps 1, 3, 4 and 5 below (secrets, host, notify service, restart).
+
+## Install — separate files
 
 1. Add the credentials to `secrets.yaml`:
 

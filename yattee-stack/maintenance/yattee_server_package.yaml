@@ -1,0 +1,228 @@
+# Yattee Server monitoring, as a single Home Assistant package.
+#
+# This is rest_sensors.yaml + automations.yaml combined into one drop-in file,
+# so you add ONE file and ONE line instead of merging into configuration.yaml
+# and automations.yaml by hand. Use this one, or use the two separate files —
+# not both, or you get duplicate entities.
+#
+# Install
+# -------
+# 1. Put this file at:  /config/packages/yattee_server.yaml
+#
+# 2. Add to configuration.yaml (skip if you already have a packages line):
+#
+#      homeassistant:
+#        packages: !include_dir_named packages
+#
+# 3. Add to secrets.yaml:
+#
+#      yattee_server_user: admin
+#      yattee_server_pass: <the add-on's admin_password>
+#
+# 4. Replace BOTH occurrences of homeassistant.local below with your tailnet
+#    name or LAN IP. NOT 127.0.0.1 — that resolves inside the HA Core
+#    container, not on the host where the add-on's port lives.
+#
+# 5. Replace notify.mobile_app_iphone (3 occurrences) with your real service.
+#    Developer Tools -> Actions -> search "notify" to find its name.
+#
+# 6. Developer Tools -> YAML -> Check configuration, then Restart.
+#
+# 7. Confirm sensor.yattee_server_extraction reads "ok" in Developer Tools ->
+#    States. If it reads "unauthenticated", the secrets are wrong.
+
+rest:
+  # --- liveness -------------------------------------------------------------
+  # /health is public (basic_auth.py PUBLIC_PATHS), so no credentials needed.
+  - resource: http://homeassistant.local:8085/health
+    scan_interval: 300
+    timeout: 15
+    sensor:
+      - name: Yattee Server status
+        unique_id: yattee_server_status
+        value_template: "{{ value_json.status | default('unreachable') }}"
+        icon: mdi:server-network
+
+  # --- version and yt-dlp currency -----------------------------------------
+  # /info returns {"name": "yattee-server"} unauthenticated and the full
+  # payload authenticated (basic_auth.py:165-186), so a missing dependencies
+  # key here means the credentials are wrong.
+  #
+  # Named without the hyphen on purpose: HA derives the entity_id by slugifying
+  # the name, and "yt-dlp" would become sensor.yattee_server_yt_dlp_version —
+  # easy to mistype against the unique_id.
+  - resource: http://homeassistant.local:8085/info
+    scan_interval: 3600
+    timeout: 20
+    username: !secret yattee_server_user
+    password: !secret yattee_server_pass
+    authentication: basic
+    sensor:
+      - name: Yattee Server ytdlp version
+        unique_id: yattee_server_ytdlp_version
+        value_template: >-
+          {{ value_json.dependencies['yt-dlp'] | default('unauthenticated') }}
+        icon: mdi:download-box
+
+  # --- end-to-end extraction ------------------------------------------------
+  # The real regression check. If yt-dlp has broken against YouTube this stops
+  # returning "Rick Astley" while /health stays perfectly green — exactly the
+  # failure that would otherwise go unnoticed until you tried to watch
+  # something.
+  #
+  # 30 min is deliberate: each poll is a real extraction. Do not lower it.
+  - resource: http://homeassistant.local:8085/api/v1/videos/dQw4w9WgXcQ
+    scan_interval: 1800
+    timeout: 60
+    username: !secret yattee_server_user
+    password: !secret yattee_server_pass
+    authentication: basic
+    sensor:
+      - name: Yattee Server extraction
+        unique_id: yattee_server_extraction
+        value_template: >-
+          {% set author = value_json.author | default('') %}
+          {% set formats = (value_json.formatStreams | default([]) | length)
+                         + (value_json.adaptiveFormats | default([]) | length) %}
+          {% if author == 'Rick Astley' and formats > 0 %}ok
+          {% elif formats > 0 %}wrong-video
+          {% else %}broken{% endif %}
+        json_attributes:
+          - extractionMethod
+
+template:
+  - binary_sensor:
+      - name: Yattee Server healthy
+        unique_id: yattee_server_healthy
+        device_class: problem
+        # device_class: problem inverts the reading: "on" means there IS a
+        # problem, which is what the automations trigger on.
+        state: >-
+          {{ states('sensor.yattee_server_status') != 'ok'
+             or states('sensor.yattee_server_extraction') != 'ok' }}
+        availability: >-
+          {{ states('sensor.yattee_server_status') not in
+             ['unknown', 'unavailable'] }}
+
+automation:
+  # --- nightly refresh — pulls the latest yt-dlp -----------------------------
+  # run.sh pip-installs yt-dlp on every start (ytdlp_version: latest), so a
+  # restart IS the upgrade. 04:00 local, when nobody is watching.
+  - id: yattee_server_nightly_refresh
+    alias: "Yattee Server: nightly refresh"
+    description: >-
+      Restarts the add-on so it picks up the current yt-dlp release, then checks
+      that extraction still works and reports if it does not.
+    mode: single
+    triggers:
+      - trigger: time
+        at: "04:00:00"
+    actions:
+      - action: hassio.addon_restart
+        data:
+          addon: local_yattee_server
+
+      # Time to install yt-dlp and bind the port. The pip install is the slow
+      # part on a Cortex-A55.
+      - delay:
+          minutes: 3
+
+      - action: homeassistant.update_entity
+        target:
+          entity_id:
+            - sensor.yattee_server_status
+            - sensor.yattee_server_extraction
+            - sensor.yattee_server_ytdlp_version
+      - delay:
+          seconds: 90
+
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: sensor.yattee_server_extraction
+                state: "ok"
+            sequence:
+              # Success is silent. A nightly "everything is fine" push trains
+              # you to ignore the notification that actually matters.
+              - action: logbook.log
+                data:
+                  name: Yattee Server
+                  message: >-
+                    Nightly refresh ok — yt-dlp
+                    {{ states('sensor.yattee_server_ytdlp_version') }}
+        default:
+          - action: persistent_notification.create
+            data:
+              notification_id: yattee_server_refresh_failed
+              title: "Yattee Server: refresh failed"
+              message: >-
+                {{ now().isoformat(timespec='seconds') }} — extraction is
+                '{{ states('sensor.yattee_server_extraction') }}' after the
+                nightly restart. yt-dlp is
+                {{ states('sensor.yattee_server_ytdlp_version') }}.
+
+                This was NOT rolled back. If a new yt-dlp release is the cause,
+                set the add-on's ytdlp_version option to the last known good
+                release and restart. Then run verify.sh.
+          - action: notify.mobile_app_iphone
+            data:
+              title: "Yattee Server refresh failed"
+              message: >-
+                Extraction '{{ states('sensor.yattee_server_extraction') }}'
+                after nightly restart — YouTube playback is probably broken.
+
+  # --- broke outside the nightly window -------------------------------------
+  - id: yattee_server_unhealthy
+    alias: "Yattee Server: unhealthy"
+    description: >-
+      Fires when the server stops answering or extraction starts failing.
+      Sustained for 15 minutes so a restart or a transient YouTube blip does
+      not page you.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.yattee_server_healthy
+        to: "on"
+        for:
+          minutes: 15
+    actions:
+      - action: persistent_notification.create
+        data:
+          notification_id: yattee_server_unhealthy
+          title: "Yattee Server unhealthy"
+          message: >-
+            {{ now().isoformat(timespec='seconds') }}
+            status={{ states('sensor.yattee_server_status') }}
+            extraction={{ states('sensor.yattee_server_extraction') }}
+            yt-dlp={{ states('sensor.yattee_server_ytdlp_version') }}
+
+            Check order: verify.sh, then the yt-dlp version, then Tailscale.
+            See DECISIONS.md "Known failure modes".
+      - action: notify.mobile_app_iphone
+        data:
+          title: "Yattee Server unhealthy"
+          message: >-
+            status={{ states('sensor.yattee_server_status') }},
+            extraction={{ states('sensor.yattee_server_extraction') }}
+
+  # --- clear the notifications on recovery ----------------------------------
+  - id: yattee_server_recovered
+    alias: "Yattee Server: recovered"
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.yattee_server_healthy
+        to: "off"
+        for:
+          minutes: 5
+    actions:
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: yattee_server_unhealthy
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: yattee_server_refresh_failed
+      - action: logbook.log
+        data:
+          name: Yattee Server
+          message: "Recovered — extraction ok"

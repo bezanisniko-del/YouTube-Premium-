@@ -43,6 +43,7 @@ tap update once. Sideloading — the 7-day treadmill — is not used anywhere he
 |---|---|
 | `DECISIONS.md` | **Read this first.** The go/no-go on the App Store client, the API coverage matrix, why the Green and not the PC, and the known failure modes. |
 | `homeassistant-addon/` | The Home Assistant local add-on. This is the deployment. |
+| `install-addon.sh` | Drops the add-on files onto the Green from the SSH add-on terminal, so you don't have to move them over Samba. |
 | `IPHONE-SETUP.md` | On-device checklist, ten steps, explicit pass conditions. |
 | `verify.sh` | Seven-check regression harness. Run after every yt-dlp bump and first whenever anything breaks. |
 | `probe-invidious.sh` | Health-probes the public Invidious instances, if you ever want the optional backing instance. |
@@ -60,9 +61,15 @@ Note the tailnet hostname — you need it for the phone.
 
 ### 2. Yattee Server add-on
 
-1. Copy `homeassistant-addon/` to `/addons/yattee-server/` on the Green. Use
-   the **Samba share** or the **Advanced SSH & Web Terminal** add-on to get at
-   that folder.
+1. Get the add-on files onto the Green. Easiest — in the **Advanced SSH & Web
+   Terminal** add-on, run:
+
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/bezanisniko-del/YouTube-Premium-/claude/youtube-adblock-app-plan-ugp00x/yattee-stack/install-addon.sh | bash
+   ```
+
+   That writes `/addons/yattee-server/` and touches nothing else. Or copy
+   `homeassistant-addon/` there yourself over the **Samba share**.
 
    > On Home Assistant 2026.07+ the internal path moved to `apps/local`, but the
    > `/addons` share still works — Supervisor keeps the old path linked
@@ -104,9 +111,12 @@ Follow `IPHONE-SETUP.md`.
 
 ### 6. Monitoring
 
-Install the sensors and automations from `maintenance/`. Not optional in
-practice — they are what tell you yt-dlp broke, before you find out by trying
-to watch something.
+Copy `maintenance/yattee_server_package.yaml` to `/config/packages/yattee_server.yaml`,
+add the two secrets, and point it at your host. Details in
+`maintenance/README.md`.
+
+Not optional in practice — this is what tells you yt-dlp broke, before you find
+out by trying to watch something.
 
 ## Teardown
 
