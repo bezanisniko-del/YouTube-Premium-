@@ -44,6 +44,7 @@ tap update once. Sideloading — the 7-day treadmill — is not used anywhere he
 | `DECISIONS.md` | **Read this first.** The go/no-go on the App Store client, the API coverage matrix, why the Green and not the PC, and the known failure modes. |
 | `homeassistant-addon/` | The Home Assistant local add-on. This is the deployment. |
 | `install-addon.sh` | Drops the add-on files onto the Green from the SSH add-on terminal, so you don't have to move them over Samba. |
+| `LOCAL-AGENT-PROMPT.md` | Paste-ready prompt that hands the whole server-side bring-up to a Claude Code session running on your own machine, which — unlike a cloud session — can actually reach the Green. |
 | `IPHONE-SETUP.md` | On-device checklist, ten steps, explicit pass conditions. |
 | `verify.sh` | Seven-check regression harness. Run after every yt-dlp bump and first whenever anything breaks. |
 | `probe-invidious.sh` | Health-probes the public Invidious instances, if you ever want the optional backing instance. |
