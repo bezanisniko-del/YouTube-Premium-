@@ -91,6 +91,10 @@ Please do the following, checking with me before anything destructive:
 When all eight are done, tell me the exact base URL to type into Yattee on my
 iPhone, and confirm verify.sh still passes 7/7 after the HA restart.
 
+Print the full verify.sh output verbatim at the end, every check line and the
+summary, so I can paste it back to the session that wrote this. Do not
+summarise it — the per-check detail is the diagnostic.
+
 Do not touch my phone setup — that is yattee-stack/IPHONE-SETUP.md and I will
 do it myself afterwards.
 ```
