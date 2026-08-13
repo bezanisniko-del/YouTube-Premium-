@@ -1,0 +1,62 @@
+# Home Assistant local add-on manifest for Yattee Server.
+#
+# Install: copy this whole directory to /addons/yattee-server/ on the HA host
+# (the "addons" share exposed by the Samba or "Advanced SSH & Web Terminal"
+# add-on), then Settings -> Add-ons -> Add-on Store -> ... -> Check for updates.
+# It appears under "Local add-ons".
+#
+# Schema verified against home-assistant/supervisor @ f4ec256 (2026-07-27),
+# supervisor/apps/validate.py:456-535.
+
+name: Yattee Server
+version: "1.0.7"
+slug: yattee_server
+description: Self-hosted yt-dlp backend for the Yattee iOS app
+
+# yattee/yattee-server publishes linux/amd64 and linux/arm64 only.
+# HA Green is aarch64 (Rockchip RK3566).
+arch:
+  - aarch64
+  - amd64
+
+url: https://github.com/yattee/yattee-server
+
+# The upstream image is not an HA base image and has no s6 supervision tree.
+# init: false stops Supervisor injecting its own init, so run.sh is PID 1.
+init: false
+
+startup: application
+boot: auto
+
+# Restart the add-on automatically if /health stops answering.
+watchdog: "http://[HOST]:[PORT:8085]/health"
+
+ports:
+  8085/tcp: 8085
+ports_description:
+  8085/tcp: Yattee Server API and admin panel (keep on the tailnet only)
+
+# Mounts a tmpfs at /tmp (supervisor/docker/app.py:333-334).
+# DOWNLOAD_DIR points there so proxy downloads never touch the 32 GB eMMC.
+tmpfs: true
+
+# /data is bind-mounted automatically (supervisor/docker/app.py:440-446) and is
+# included in Home Assistant backups. No `map:` entry is needed for it.
+
+options:
+  admin_username: admin
+  admin_password: ""
+  invidious_instance_url: ""
+  ytdlp_version: latest
+  log_level: info
+
+schema:
+  # Auto-provisions the admin account on every start
+  # (yattee-server env_provisioning.py:28-45). Password must be non-empty.
+  admin_username: str
+  admin_password: password
+  # Optional backing Invidious instance. Leave blank — see DECISIONS.md D4.
+  invidious_instance_url: str?
+  # "latest" | "skip" | an explicit release such as "2026.07.04". See D3.
+  ytdlp_version: str
+  log_level: list(trace|debug|info|notice|warning|error|fatal)
