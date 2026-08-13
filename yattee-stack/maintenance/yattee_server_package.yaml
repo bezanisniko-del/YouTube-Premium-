@@ -61,7 +61,7 @@ rest:
       - name: Yattee Server ytdlp version
         unique_id: yattee_server_ytdlp_version
         value_template: >-
-          {{ value_json.dependencies['yt-dlp'] | default('unauthenticated') }}
+          {{ value_json.get('dependencies', {}).get('yt-dlp', 'unauthenticated') }}
         icon: mdi:download-box
 
   # --- end-to-end extraction ------------------------------------------------

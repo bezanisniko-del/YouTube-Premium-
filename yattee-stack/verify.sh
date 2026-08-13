@@ -217,19 +217,40 @@ else
 fi
 
 # --- 6. captions ------------------------------------------------------------
-code=$(req "/api/v1/captions/${VIDEO_ID}")
-if is_2xx "$code"; then
-    n=$(jq_py 'len(d.get("captions",[])) if isinstance(d, dict) else len(d)')
-    if [ "${n:-0}" -gt 0 ]; then
-        record "6 captions" 0 "${n} caption tracks"
-    else
-        # Without a backing Invidious instance this can legitimately be empty
-        # for some videos. Reported as a failure because dQw4w9WgXcQ does have
-        # captions; if you switched --video, judge accordingly.
-        record "6 captions" 1 "200 but zero caption tracks"
-    fi
+# Deliberately NOT a bare GET of /api/v1/captions/{id}. That path is in
+# basic_auth.py PUBLIC_PATHS, so Basic Auth does not authorise it — it wants an
+# HMAC `token` query parameter instead (invidious_proxy.py:401-415 ->
+# routers/proxy/_auth.py:11-34), and a credentialled request without one gets a
+# flat 401 no matter how healthy the server is.
+#
+# The video response already carries tokenised caption URLs
+# (converters/_captions.py:27-75), which is exactly what Yattee itself plays.
+# So: read one off the video, then fetch it.
+code=$(req "/api/v1/videos/${VIDEO_ID}")
+if ! is_2xx "$code"; then
+    record "6 captions" 1 "video fetch failed, HTTP $code"
 else
-    record "6 captions" 1 "HTTP $code"
+    ncap=$(jq_py 'len(d.get("captions",[]))')
+    CAPTION_URL=$(jq_py 'd.get("captions",[{}])[0].get("url","")')
+
+    if [ "${ncap:-0}" -eq 0 ]; then
+        # Legitimately possible on a video with no subtitles. dQw4w9WgXcQ has
+        # them, so with the default --video this is a real failure.
+        record "6 captions" 1 "video metadata lists zero caption tracks"
+    elif [ -z "${CAPTION_URL:-}" ]; then
+        record "6 captions" 1 "${ncap} tracks listed but the first has no url"
+    else
+        # Absolute and already tokenised, so no -u here: adding Basic Auth
+        # would not help and the token is what authorises it.
+        cap=$(curl -sS --max-time 45 -w '\n%{http_code}' "$CAPTION_URL" 2>/dev/null)
+        ccode=$(printf '%s' "$cap" | tail -1)
+        cbytes=$(printf '%s' "$cap" | sed '$d' | wc -c | tr -d ' ')
+        if is_2xx "${ccode:-0}" && [ "${cbytes:-0}" -gt 32 ]; then
+            record "6 captions" 0 "${ncap} tracks, first fetched ${cbytes} bytes"
+        else
+            record "6 captions" 1 "${ncap} tracks but content HTTP ${ccode:-?} (${cbytes:-0} bytes)"
+        fi
+    fi
 fi
 
 # --- 7. cold-start latency, p50 over N runs ---------------------------------

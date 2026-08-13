@@ -285,3 +285,65 @@ Where these disagree, the code wins. Flagged as instructed:
 5. **The spec's Phase 3 asked for `/api/v1/stats`.** No such endpoint exists on
    Yattee Server, and Yattee 1.5.1 never calls one (no `stats` reference anywhere
    in the client source). `verify.sh` uses `/health` and `/info` instead.
+6. **`/api/v1/captions/{id}` is not reachable with Basic Auth.** `docs/api.md`
+   lists `token` as an optional query parameter. It is not optional: the path is
+   in `basic_auth.py` `PUBLIC_PATHS`, so the middleware waves it through without
+   checking credentials, and then the endpoint demands an HMAC token
+   (`invidious_proxy.py:401-415` → `routers/proxy/_auth.py:11-34`). A
+   credentialled request with no token gets a flat 401 regardless of server
+   health. Clients are meant to use the tokenised caption URLs embedded in the
+   video response (`converters/_captions.py:27-75`), which is what Yattee does
+   and what `verify.sh` check 6 now does.
+
+---
+
+## What has actually been tested
+
+Recorded so nobody has to guess how much of this is theory. Tested 2026-08-13.
+
+A real `yattee-server` 1.0.7 was run from source on Python 3.12 (the Docker
+daemon is unavailable in this environment, so the published image itself was not
+run) and driven end to end.
+
+**Confirmed working against the live server:**
+
+- **Env auto-provisioning.** `ADMIN_USERNAME` + `ADMIN_PASSWORD` created the
+  admin on first boot — log line `ENV provisioning: created admin user 'admin'`.
+  This is the mechanism the add-on's `run.sh` depends on for a reproducible
+  deploy.
+- **`verify.sh` check 1** passes against a real server and reports
+  `server=1.0.7 yt-dlp=2026.07.04` from the authenticated `/info`.
+- **Credential rejection is distinguishable from an outage.** With a wrong
+  password, check 1 reports `/health ok but /info HTTP 401 — credentials
+  rejected` rather than a generic failure.
+- **`/info` reports the yt-dlp version** as long as yt-dlp is on the server
+  process's `PATH`. It reads `not available` when it is not — an artifact of
+  running from a venv, not a defect. The published image pip-installs to
+  `/usr/local/bin`, which is on `PATH`.
+- **Every Home Assistant Jinja template** in `maintenance/` was rendered against
+  the live `/health` and `/info` payloads plus synthesised video responses:
+  status, the yt-dlp version including the unauthenticated-stub case, all four
+  extraction states, and the `problem` binary sensor across four
+  status/extraction combinations. All assertions pass.
+
+**Two real bugs this found and fixed:**
+
+1. `verify.sh` check 6 fetched `/api/v1/captions/{id}` with Basic Auth, which
+   always returns 401 (item 6 above). It would have reported FAIL on a perfectly
+   healthy server, forever.
+2. The yt-dlp sensor used
+   `value_json.dependencies['yt-dlp'] | default('unauthenticated')`. The
+   `default` filter never fires — subscripting the undefined `dependencies`
+   raises first, so the sensor would go `unknown` with a template error instead
+   of showing the documented `unauthenticated`. Now uses chained `.get()`.
+
+**Still untested, and only you can close this:**
+
+- Checks 2–7 of `verify.sh`. They need real YouTube extraction, and outbound
+  access to YouTube is blocked in the environment this was built in, so every
+  one of them returns HTTP 500 here. Their **failure** paths are exercised; their
+  **success** paths are not.
+- The add-on as Supervisor actually runs it: the image build, `tmpfs` at `/tmp`,
+  `/data` persistence, the watchdog, and `run.sh`'s option parsing against a real
+  `/data/options.json`.
+- Everything in `IPHONE-SETUP.md`.
